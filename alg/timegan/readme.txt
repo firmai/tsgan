@@ -1,3 +1,6 @@
+See the [colab](https://colab.research.google.com/drive/1aenzDNjZjRHdR9YO1iPBTrzoTrqYaHtQ?usp=sharing) I developed for an interactive experience.  
+
+
 2019 NeurIPS Submission
 Title: Time-series Generative Adversarial Networks
 Authors: Jinsung Yoon, Daniel Jarrett, Mihaela van der Schaar
