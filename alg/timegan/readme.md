@@ -1,4 +1,4 @@
-See the [colab](https://colab.research.google.com/drive/1aenzDNjZjRHdR9YO1iPBTrzoTrqYaHtQ?usp=sharing) I developed for an interactive experience.  
+See the [colab](https://colab.research.google.com/drive/1aenzDNjZjRHdR9YO1iPBTrzoTrqYaHtQ?usp=sharing) developed by @firmai for an interactive experience.  
 
 
 2019 NeurIPS Submission
