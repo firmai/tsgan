@@ -1,5 +1,7 @@
 # ML-AIM: Machine Learning and Artificial Intelligence for Medicine
 
+In this fork, I present some of my own adjustments to the original work. I have also developed a conditional MTS gan, [here](https://github.com/firmai/mtss-gan). 
+
 This repository contains the implementations of algorithms developed
 by the [ML-AIM](http://www.vanderschaar-lab.com) Laboratory.
 
