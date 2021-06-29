@@ -9,7 +9,10 @@ Contact: jsyoon0823@g.ucla.edu
 '''
 
 #%% Packages
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+from tensorflow import keras
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import argparse
@@ -20,7 +23,8 @@ import initpath_alg
 initpath_alg.init_sys_path()
 import utilmlab
 import data_loader_mlab
-
+import joblib 
+from math import log2
 
 def normalize_array(a):
     Dim = a.shape[1]
@@ -53,7 +57,7 @@ def init_arg():
     parser.add_argument(
         '-o', default='imputed.csv', help='output (csv) file')
     parser.add_argument(
-        '--it', default=5000, type=int, help='iterations')
+        '--it', default=200, type=int, help='iterations')
     parser.add_argument(
         '--dataset',
         help='load one of the available/buildin datasets'
@@ -75,7 +79,13 @@ def init_arg():
     parser.add_argument(
         '--pmiss', default=0.2, type=float, help='missing rate')
     parser.add_argument(
-        '--phint', default=0.9, type=float, help='hint rate')
+        '--phint', default=0.5, type=float, help='hint rate')
+    parser.add_argument(
+        '--zsample', default=0.01, type=float, help='Random Distribution')
+    parser.add_argument(
+        '--T', type=float, help='Data type')
+    parser.add_argument(
+        '--Ar', type=float, help='Architcture')
     parser.add_argument(
         '--alpha', default=10, type=float, help='')
     parser.add_argument(
@@ -101,6 +111,10 @@ if __name__ == '__main__':
     mb_size = args.bs
     p_miss = args.pmiss
     p_hint = args.phint
+    z_sample = args.zsample
+    Type = args.T
+    Architcture = args.Ar
+
     alpha = args.alpha
     train_rate = args.trainratio
     dataset = args.dataset
@@ -163,9 +177,43 @@ if __name__ == '__main__':
     No = len(Data)
     Dim = len(Data[0, :])
 
+
     # Hidden state dimensions
     H_Dim1 = Dim
     H_Dim2 = Dim
+    
+    if Architcture == 1:
+        Arch =1
+        
+
+        
+    if Architcture == 2:
+        Arch =0.5
+        #No = int(len(Data/2))
+
+        H_Dim1 = int(H_Dim1/2)
+        H_Dim2 = int(H_Dim2/2)
+
+    if Architcture == 4:
+        Arch =0.25
+        #No = int(len(Data/4))
+
+        H_Dim1 = int(H_Dim1/4)
+        H_Dim2 = int(H_Dim2/4)
+        
+    if Architcture == 8:
+        Arch =0.125
+        #No = int(len(Data/4))
+
+        H_Dim1 = int(H_Dim1/8)
+        H_Dim2 = int(H_Dim2/8)
+        
+    if Architcture == 16:
+        Arch =0.0625
+        #No = int(len(Data/4))
+
+        H_Dim1 = int(H_Dim1/16)
+        H_Dim2 = int(H_Dim2/16)
 
     if True:
         if fn_icsv is not None:
@@ -183,6 +231,19 @@ if __name__ == '__main__':
     # scale/normalize dataset
     range_scaler = (0, 1)
     scaler = MinMaxScaler(feature_range=range_scaler)
+    if Type == 1:
+        np.savetxt('str_min_value-h1={0}d_h2={1}d.csv'.format(Arch,Arch), np.min(trainX, axis=0), delimiter=",")
+        np.savetxt('str_max_value-h1={0}d_h2={1}d.csv'.format(Arch,Arch), np.max(trainX, axis=0), delimiter=",")
+    if Type == 2:
+        np.savetxt('Accel_x_min_value-h1={0}d_h2={1}d.csv'.format(Arch,Arch), np.min(trainX, axis=0), delimiter=",")
+        np.savetxt('Accel_x_max_value-h1={0}d_h2={1}d.csv'.format(Arch,Arch), np.max(trainX, axis=0), delimiter=",")
+    if Type == 3:
+        np.savetxt('Accel_y_min_value-h1={0}d_h2={1}d.csv'.format(Arch,Arch), np.min(trainX, axis=0), delimiter=",")
+        np.savetxt('Accel_y_max_value-h1={0}d_h2={1}d.csv'.format(Arch,Arch), np.max(trainX, axis=0), delimiter=",")
+    if Type == 4:
+        np.savetxt('Accel_z_min_value-h1={0}d_h2={1}d.csv'.format(Arch,Arch), np.min(trainX, axis=0), delimiter=",")
+        np.savetxt('Accel_z_max_value-h1={0}d_h2={1}d.csv'.format(Arch,Arch), np.max(trainX, axis=0), delimiter=",")
+    
     scaler.fit(trainX)
 
     trainX = scaler.transform(
@@ -224,35 +285,35 @@ if __name__ == '__main__':
        
     #%% 1. Input Placeholders
     # 1.1. Data Vector
-    X = tf.placeholder(tf.float32, shape = [None, Dim])
+    X = tf.placeholder(tf.float32, shape = [None, Dim], name='X')
     # 1.2. Mask Vector 
-    M = tf.placeholder(tf.float32, shape = [None, Dim])
+    M = tf.placeholder(tf.float32, shape = [None, Dim], name='M')
     # 1.3. Hint vector
-    H = tf.placeholder(tf.float32, shape = [None, Dim])
+    H = tf.placeholder(tf.float32, shape = [None, Dim], name='H')
     # 1.4. X with missing values
-    New_X = tf.placeholder(tf.float32, shape = [None, Dim])
+    New_X = tf.placeholder(tf.float32, shape = [None, Dim], name='New_X')
     
     #%% 2. Discriminator
-    D_W1 = tf.Variable(xavier_init([Dim*2, H_Dim1]))     # Data + Hint as inputs
-    D_b1 = tf.Variable(tf.zeros(shape = [H_Dim1]))
+    D_W1 = tf.Variable(xavier_init([Dim*2, H_Dim1]), name='D_W1')     # Data + Hint as inputs
+    D_b1 = tf.Variable(tf.zeros(shape = [H_Dim1]), name='D_b1')
     
-    D_W2 = tf.Variable(xavier_init([H_Dim1, H_Dim2]))
-    D_b2 = tf.Variable(tf.zeros(shape = [H_Dim2]))
+    D_W2 = tf.Variable(xavier_init([H_Dim1, H_Dim2]), name='D_W2')
+    D_b2 = tf.Variable(tf.zeros(shape = [H_Dim2]), name='D_b2')
     
-    D_W3 = tf.Variable(xavier_init([H_Dim2, Dim]))
-    D_b3 = tf.Variable(tf.zeros(shape = [Dim]))       # Output is multi-variate
+    D_W3 = tf.Variable(xavier_init([H_Dim2, Dim]), name='D_W3')
+    D_b3 = tf.Variable(tf.zeros(shape = [Dim]), name='D_b3')       # Output is multi-variate
     
     theta_D = [D_W1, D_W2, D_W3, D_b1, D_b2, D_b3]
     
     #%% 3. Generator
-    G_W1 = tf.Variable(xavier_init([Dim*2, H_Dim1]))     # Data + Mask as inputs (Random Noises are in Missing Components)
-    G_b1 = tf.Variable(tf.zeros(shape = [H_Dim1]))
+    G_W1 = tf.Variable(xavier_init([Dim*2, H_Dim1]), name='G_W1')     # Data + Mask as inputs (Random Noises are in Missing Components)
+    G_b1 = tf.Variable(tf.zeros(shape = [H_Dim1]), name='G_b1')
     
-    G_W2 = tf.Variable(xavier_init([H_Dim1, H_Dim2]))
-    G_b2 = tf.Variable(tf.zeros(shape = [H_Dim2]))
+    G_W2 = tf.Variable(xavier_init([H_Dim1, H_Dim2]), name='G_W2')
+    G_b2 = tf.Variable(tf.zeros(shape = [H_Dim2]), name='G_b2')
     
-    G_W3 = tf.Variable(xavier_init([H_Dim2, Dim]))
-    G_b3 = tf.Variable(tf.zeros(shape = [Dim]))
+    G_W3 = tf.Variable(xavier_init([H_Dim2, Dim]), name='G_W3')
+    G_b3 = tf.Variable(tf.zeros(shape = [Dim]), name='G_b3')
     
     theta_G = [G_W1, G_W2, G_W3, G_b1, G_b2, G_b3]
     
@@ -280,7 +341,7 @@ if __name__ == '__main__':
     #%% 3. Other functions
     # Random sample generator for Z
     def sample_Z(m, n):
-        return np.random.uniform(0., 0.01, size = [m, n])        
+        return np.random.uniform(0., z_sample, size = [m, n])        
     
     # Mini-batch generation
     def sample_idx(m, n):
@@ -305,7 +366,7 @@ if __name__ == '__main__':
     
     D_loss = D_loss1
     G_loss = G_loss1 + alpha * MSE_train_loss 
-    
+    # print('hello')
     #%% MSE Performance metric
     MSE_test_loss = tf.reduce_mean(((1-M) * X - (1-M)*G_sample)**2) / tf.reduce_mean(1-M)
     
@@ -318,7 +379,8 @@ if __name__ == '__main__':
     sess.run(tf.global_variables_initializer())
     
     #%% Iterations
-    
+    arr_G=[]
+    arr_D=[]
     #%% Start Iterations
     
     pbar = tqdm(range(niter))
@@ -331,6 +393,8 @@ if __name__ == '__main__':
         Z_mb = sample_Z(mb_size, Dim)  # random noise between 0 and 0.01
         M_mb = trainM[mb_idx, :]  # mask mbsize
         H_mb1 = sample_M(mb_size, Dim, 1-p_hint)  # hint mask (1-phint)
+        #print("Hello", "how are you?")
+        #print(len(Data))
         H_mb = M_mb * H_mb1 # mask * hint mask = hints
                  # mask * X    + not mask * noise
         New_X_mb = M_mb * X_mb + (1-M_mb) * Z_mb  # Missing Data Introduce
@@ -338,7 +402,8 @@ if __name__ == '__main__':
         _, D_loss_curr = sess.run([D_solver, D_loss1], feed_dict = {M: M_mb, New_X: New_X_mb, H: H_mb})
         _, G_loss_curr, MSE_train_loss_curr, MSE_test_loss_curr = sess.run([G_solver, G_loss1, MSE_train_loss, MSE_test_loss],
                                                                            feed_dict = {X: X_mb, M: M_mb, New_X: New_X_mb, H: H_mb})
-
+        arr_G.append(G_loss_curr)
+        arr_D.append(D_loss_curr)
         #%% Intermediate Losses
         if it % 500 == 0:
             s = "{:6d}) loss train {:0.3f} test {:0.3f}".format(
@@ -349,7 +414,15 @@ if __name__ == '__main__':
             logger.info('{}'.format(s))
             pbar.set_description(s)
         
+        plt.plot(it, MSE_train_loss_curr, 'go', label='Training loss')
+        plt.plot(it, MSE_test_loss_curr, 'bo', label='Testing loss')
+        plt.title('Training loss Vs. Epochs')
+        plt. ylabel('MSE Loss')
+        plt. xlabel('epochs')
+        # plt.legend()
         
+        # plt.show()
+        # plt.savefig('{}/loss.png'.format(odir))   
     #%% Final Loss
 
     if not test_all:
@@ -389,3 +462,119 @@ if __name__ == '__main__':
         df_imputed[[label]] = df[[label]]
 
     df_imputed.to_csv(fn_ocsv, index=False)
+
+    # epochs = range(0, 5000)
+    # plt.figure()
+
+    # plt.plot(it, D_loss, 'bo', label='Training loss')
+    # plt.plot(it, G_loss, 'bo', label='Training loss')
+    
+    # plt.plot(it, MSE_train_loss_curr, 'go', label='Training loss')
+    # plt.plot(it, MSE_test_loss_curr, 'bo', label='Testing loss')
+    # plt.title('Training loss')
+    # plt.legend()
+    
+    # # plt.show()
+    if Type == 1:
+       plt.savefig('{0}/loss_strh1={1}d_h2={2}d.png'.format(odir,Arch,Arch))
+       
+    if Type == 2:
+       plt.savefig('{0}/loss_Axh1={1}d_h2={2}d.png'.format(odir,Arch,Arch))
+       
+    if Type == 3:
+       plt.savefig('{0}/loss_Ayh1={1}d_h2={2}d.png'.format(odir,Arch,Arch))
+       
+    if Type == 4:
+       plt.savefig('{0}/loss_Azh1={1}d_h2={2}d.png'.format(odir,Arch,Arch))
+       
+     
+    it_arr = range(0,niter)
+    plt.figure()
+    plt.plot(it_arr, arr_G, 'go', label='G')
+    plt.plot(it_arr, arr_D, 'bo', label='D')
+    plt.title('Training loss Vs. Epochs')
+    plt. ylabel('Cross Entropy')
+    plt. xlabel('epochs')
+    plt.legend()
+    if Type == 1:
+
+       plt.savefig('{0}/crossLoss_strh1={1}d_h2={2}d.png'.format(odir,Arch,Arch))
+     
+    if Type == 2:
+
+       plt.savefig('{0}/crossLoss_Axh1={1}d_h2={2}d.png'.format(odir,Arch,Arch))
+       
+    if Type == 3:
+
+       plt.savefig('{0}/crossLoss_Ayh1={1}d_h2={2}d.png'.format(odir,Arch,Arch))
+       
+    if Type == 4:
+
+       plt.savefig('{0}/crossLoss_Azh1={1}d_h2={2}d.png'.format(odir,Arch,Arch))
+
+    # for x in arr_G:
+    #     print(x)
+    # calculate cross entropy
+    # def cross_entropy(p, q):
+    # 	   return -sum([p[i]*log2(q[i]) for i in range(len(p))])
+
+    # ce_pq = cross_entropy(arr_G, arr_D)
+    # print('H(P, Q): %.3f bits' % ce_pq)
+    # # calculate cross entropy H(Q, P)
+    # ce_qp = cross_entropy(arr_D, arr_G)
+    # print('H(Q, P): %.3f bits' % ce_qp)
+    
+    
+    
+    # Save models
+
+    saver = tf.train.Saver()
+
+    #saver.save(sess, 'gain_model')
+
+    G_W1_save = sess.run(G_W1)
+    G_b1_save = sess.run(G_b1)
+    G_W2_save = sess.run(G_W2)
+    G_b2_save = sess.run(G_b2)
+    G_W3_save = sess.run(G_W3)
+    G_b3_save = sess.run(G_b3)
+    
+    if Type == 1:
+
+        np.savetxt('G_W1_str-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W1_save, delimiter=",")
+        np.savetxt('G_b1_str-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b1_save, delimiter=",")
+        np.savetxt('G_W2_str-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W2_save, delimiter=",")
+        np.savetxt('G_b2_str-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b2_save, delimiter=",")
+        np.savetxt('G_W3_str-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W3_save, delimiter=",")
+        np.savetxt('G_b3_str-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b3_save, delimiter=",")
+    ####
+    if Type == 2:
+
+        np.savetxt('G_W1_accel_x-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W1_save, delimiter=",")
+        np.savetxt('G_b1_accel_x-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b1_save, delimiter=",")
+        np.savetxt('G_W2_accel_x-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W2_save, delimiter=",")
+        np.savetxt('G_b2_accel_x-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b2_save, delimiter=",")
+        np.savetxt('G_W3_accel_x-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W3_save, delimiter=",")
+        np.savetxt('G_b3_accel_x-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b3_save, delimiter=",")
+    
+    if Type == 3:
+
+        np.savetxt('G_W1_accel_y-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W1_save, delimiter=",")
+        np.savetxt('G_b1_accel_y-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b1_save, delimiter=",")
+        np.savetxt('G_W2_accel_y-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W2_save, delimiter=",")
+        np.savetxt('G_b2_accel_y-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b2_save, delimiter=",")
+        np.savetxt('G_W3_accel_y-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W3_save, delimiter=",")
+        np.savetxt('G_b3_accel_y-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b3_save, delimiter=",")
+        
+    if Type == 4:
+
+        np.savetxt('G_W1_accel_z-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W1_save, delimiter=",")
+        np.savetxt('G_b1_accel_z-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b1_save, delimiter=",")
+        np.savetxt('G_W2_accel_z-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W2_save, delimiter=",")
+        np.savetxt('G_b2_accel_z-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b2_save, delimiter=",")
+        np.savetxt('G_W3_accel_z-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_W3_save, delimiter=",")
+        np.savetxt('G_b3_accel_z-h1={0}d_h2={1}d.csv'.format(Arch,Arch), G_b3_save, delimiter=",")
+
+    print(scaler.get_params())
+    # save scaler
+    joblib.dump(scaler, 'scaler.gz')

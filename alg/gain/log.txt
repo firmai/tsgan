@@ -1,0 +1,10 @@
+gain data:stretch_imputed_train.csv # it:200 testall:1 odir:. autocat:1 is_cat_one_hot:False
+
+Namespace(Ar=16.0, T=1.0, alpha=10, autocategorical=1, bs=128, dataset=None, i='stretch_missing_train.csv', it=200, o='stretch_imputed_train.csv', phint=0.5, pmiss=0.2, ref=None, target=None, testall=1, trainratio=0.8, verbose=0, zsample=0.01)
+
+features: #71 ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', '51', '52', '53', '54', '55', '56', '57', '58', '59', '60', '61', '62', '63', '64', '65', '66', '67', '68', '69', '70', '71'] label:None
+From C:\Users\dina.hussein\Anaconda3\envs\downgraded\lib\site-packages\tensorflow\python\ops\math_grad.py:1205: add_dispatch_support.<locals>.wrapper (from tensorflow.python.ops.array_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.where in 2.0, which has the same broadcast rule as np.where
+     0) loss train 0.500 test 0.550
+testall: (2368, 71) (2368, 71) (2368, 71) (128, 71)
