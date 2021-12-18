@@ -1,5 +1,9 @@
 # ML-AIM: Machine Learning and Artificial Intelligence for Medicine
 
+Finance Quant Machine Learning
+------------------
+- [ML-Quant.com](https://www.ml-quant.com/)  -  Automated Research Repository 
+
 In this fork, I present some of my own adjustments to the original work. I have also developed a conditional MTS gan, [here](https://github.com/firmai/mtss-gan). 
 
 This repository contains the implementations of algorithms developed
